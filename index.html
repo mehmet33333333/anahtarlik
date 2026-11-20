@@ -1,0 +1,84 @@
+<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Anahtarlık v12</title>
+<style>body{font-family:system-ui;background:#090d16;color:#fff;margin:0;padding:14px}.k{max-width:420px;margin:auto;background:#1e293b;padding:18px;border-radius:16px}h2{margin:0 0 10px;color:#38bdf8;text-align:center}.d{padding:9px;border-radius:8px;background:#334155;text-align:center;font-weight:bold;margin-bottom:12px}.g{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px}.c{background:#0f172a;padding:8px;border-radius:10px;text-align:center}.c span{font-size:10px;color:#94a3b8;display:block}.c strong{font-size:14px}button{width:100%;padding:12px;margin:5px 0;border:none;border-radius:10px;font-weight:bold;cursor:pointer}.r{display:flex;gap:8px}input,select{width:100%;padding:10px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#fff;box-sizing:border-box}#al{display:none;background:#dc2626;padding:12px;border-radius:10px;margin-top:10px;text-align:center}#ok,#hata{display:none;padding:10px;border-radius:10px;margin-top:10px;text-align:center}#ok{background:#16a34a}#hata{background:#b45309}</style></head>
+<body><div class="k"><h2>🔑 Anahtarlık v12</h2><div id="d" class="d" style="color:#f87171">Bağlı Değil</div><button id="bb" style="background:#0284c7;color:#fff" onclick="baglan()">Bluetooth ile Bağlan</button>
+<div id="kn" style="display:none"><div class="g"><div class="c"><span>Sinyal</span><strong id="tr">--</strong></div><div class="c"><span>Pil</span><strong id="tp">--</strong></div><div class="c"><span>Sıcaklık</span><strong id="tt">--</strong></div></div>
+<div class="g" style="grid-template-columns:1fr 1fr"><div class="c"><span>Aktif Ekran</span><strong id="ts">Sayfa 1</strong></div><div class="c"><span>El Feneri</span><strong id="tl">Kapalı</strong></div></div>
+<div class="r"><button style="background:#f59e0b" onclick="g('bul')">🚨 Bul (Ses+Işık)</button><button style="background:#eab308" onclick="g('led_next')">🔦 Fener Mod</button></div>
+<div class="r"><button id="bs" style="background:#0ea5e9;color:#fff" onclick="sessiz()">🔊 Ses: AÇIK</button><button id="bt" style="background:#475569;color:#fff" onclick="tasma()">🛡️ Taşma: KAPALI</button></div>
+<div style="margin-top:6px"><select id="uy" onchange="uykuDegis(this.value)"><option value="10">Ekran uyku: 10 sn</option><option value="15">Ekran uyku: 15 sn</option><option value="30" selected>Ekran uyku: 30 sn</option><option value="60">Ekran uyku: 60 sn</option><option value="120">Ekran uyku: 120 sn</option></select></div>
+<div class="r" style="margin-top:10px"><select id="ny" style="width:35%"><option value="n1">Not 1</option><option value="n2">Not 2</option><option value="n3">Not 3</option></select><input id="ms" placeholder="Yazı yaz..." maxlength="100"></div>
+<button style="background:#2563eb;color:#fff" onclick="notGonder()">📤 Nota Kaydet &amp; Göster</button></div>
+<div id="ok">✅ Anahtarlık mesajı gördü: OK!</div><div id="hata"></div><div id="al"><h3 id="ab">🚨 ALARM!</h3><button onclick="sus()">Sustur</button></div></div>
+<script>
+const S="6e400001-b5a3-f393-e0a9-e50e24dcca9e",RX="6e400002-b5a3-f393-e0a9-e50e24dcca9e",TX="6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+let rx,ai,ac,tm=false,sz=false,rb="",q=Promise.resolve(),tmZ=0,szZ=0,uyZ=0;
+const dec=new TextDecoder(),$=id=>document.getElementById(id);
+
+function uyari(t){const h=$("hata");h.innerText=t;h.style.display="block";setTimeout(()=>h.style.display="none",4000)}
+
+async function baglan(){
+  try{
+    const c=await navigator.bluetooth.requestDevice({filters:[{name:"Anahtarlik"}],optionalServices:[S]});
+    c.addEventListener('gattserverdisconnected',()=>{rx=null;rb="";$("d").innerText="Koptu!";$("d").style.color="#f87171";$("bb").style.display="block";$("kn").style.display="none"});
+    const sv=await c.gatt.connect(),sr=await sv.getPrimaryService(S);
+    rx=await sr.getCharacteristic(RX);
+    const tx=await sr.getCharacteristic(TX);
+    await tx.startNotifications();
+    tx.addEventListener('characteristicvaluechanged',veri);
+    $("d").innerText="Bağlı: "+c.name;$("d").style.color="#4ade80";$("bb").style.display="none";$("kn").style.display="block";
+    setTimeout(saat,400);
+  }catch(e){alert(e)}
+}
+
+// Yazma: sıraya alınır (aynı anda iki yazma olmaz), 20 baytlık parçalara bölünür, sonuna \n eklenir
+function g(m){q=q.then(()=>yaz(m)).catch(e=>uyari("Gönderilemedi: "+(e.message||e)));return q}
+async function yaz(m){
+  if(!rx)throw new Error("bağlı değil");
+  const b=new TextEncoder().encode(m+"\n");
+  for(let i=0;i<b.length;i+=20)await rx.writeValue(b.slice(i,i+20));
+}
+
+function saat(){const d=new Date(),p=n=>String(n).padStart(2,'0');g("time:"+p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds()))}
+
+function tasmaUI(){$("bt").innerText=tm?"🛡️ Taşma: AÇIK":"🛡️ Taşma: KAPALI";$("bt").style.background=tm?"#16a34a":"#475569"}
+function sessizUI(){$("bs").innerText=sz?"🔇 Ses: SESSİZ":"🔊 Ses: AÇIK"}
+function tasma(){tm=!tm;tmZ=Date.now();tasmaUI();g(tm?"tasma_on":"tasma_off")}
+function sessiz(){sz=!sz;szZ=Date.now();sessizUI();g(sz?"mute_on":"mute_off")}
+function uykuDegis(v){uyZ=Date.now();g("sleep:"+v)}
+function notGonder(){const i=$("ms"),t=i.value.trim();if(t){g($("ny").value+":"+t);i.value=""}}
+
+// Gelen veri: parçalanmış bildirimler tamponda birleştirilir, satır sonunda işlenir
+function veri(e){
+  rb+=dec.decode(e.target.value,{stream:true});
+  let i;
+  while((i=rb.search(/[\r\n]/))>=0){const l=rb.slice(0,i).trim();rb=rb.slice(i+1);if(l)isle(l)}
+}
+
+function isle(v){
+  if(v.startsWith("STAT|")){
+    const p=v.split("|");
+    $("tt").innerText=p[1]+" °C";
+    $("tr").innerText=parseInt(p[2])<=-99?"Ölçülüyor":p[2]+" dBm";
+    $("ts").innerText="Sayfa "+p[3];
+    const m=["Kapalı","Sürekli","Yanıp Sön","SOS"];$("tl").innerText=m[parseInt(p[4])]||"Kapalı";
+    if(p[5])$("tp").innerText="%"+p[5];
+    const now=Date.now();
+    if(p[6]!==undefined&&now-tmZ>3000){const t=p[6]==="1";if(t!==tm){tm=t;tasmaUI()}}
+    if(p[7]!==undefined&&now-szZ>3000){const t=p[7]==="1";if(t!==sz){sz=t;sessizUI()}}
+    if(p[8]!==undefined&&now-uyZ>3000&&document.activeElement!==$("uy")){const o=[...$("uy").options].find(x=>x.value===p[8]);if(o)$("uy").value=p[8]}
+  }
+  else if(v.includes("SYNC_REQ"))saat();
+  else if(v.includes("BULUNDU"))alarm("🚨 ANAHTARLIK SİNYAL GÖNDERDİ!");
+  else if(v.includes("TASMA_ALARM"))alarm("⚠️ TELEFON UZAKLAŞTI!");
+  else if(v.includes("CEVAP_OK")){const o=$("ok");o.style.display="block";setTimeout(()=>o.style.display="none",4000)}
+}
+
+function alarm(t){
+  $("ab").innerText=t;$("al").style.display="block";
+  if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();
+  if(ac.state==="suspended")ac.resume();
+  clearInterval(ai);
+  ai=setInterval(()=>{const o=ac.createOscillator();o.frequency.setValueAtTime(880,ac.currentTime);o.connect(ac.destination);o.start();o.stop(ac.currentTime+0.25)},550);
+}
+function sus(){$("al").style.display="none";clearInterval(ai)}
+</script></body></html>
